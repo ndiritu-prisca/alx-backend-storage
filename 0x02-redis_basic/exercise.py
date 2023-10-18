@@ -40,6 +40,19 @@ def call_history(method: Callable) -> Callable:
     return wrapper
 
 
+def replay(method: str):
+    """A  function to display the history of calls of a particular function"""
+    name = method.__qualname__
+    cache = redis.Redis()
+    calls = cache.get(name).decode("utf-8")
+    print("{} was called {} times:".format(name, calls))
+    inputs_hist = cache.lrange(name + ":inputs", 0, -1)
+    outputs_hist = cache.lrange(name + ":outputs", 0, -1)
+    for i, o in zip(inputs_hist, outputs_hist):
+        print("{}(*{}) -> {}".format(name, i.decode('utf-8'),
+                                     o.decode('utf-8')))
+
+
 class Cache:
     """The module's class Cache"""
     def __init__(self):
@@ -74,3 +87,10 @@ class Cache:
     def get_int(self, key: str):
         """Method that gets an int"""
         return self.get(key, fn=int)
+
+
+cache = Cache()
+cache.store("foo")
+cache.store("bar")
+cache.store(42)
+replay(cache.store)
