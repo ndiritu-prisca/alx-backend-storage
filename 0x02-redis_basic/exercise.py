@@ -4,7 +4,20 @@
 import uuid
 import redis
 from typing import Union, Callable
+from functools import wraps
 
+
+def count_calls(method: Callable) -> Callable:
+        """
+        A decorator that takes a single method Callable argument and returns
+        a Callable
+        """
+        @wraps(method)
+        def wrapper(self, *args, **kwargs):
+            key = method.__qualname__
+            self._redis.incr(key)
+            return method(self, *args, **kwargs)
+        return wrapper
 
 class Cache:
     """The module's class Cache"""
@@ -13,6 +26,7 @@ class Cache:
         self._redis = redis.Redis()
         self._redis.flushdb()
 
+    @count_calls
     def store(self, data: Union[str, bytes, int, float]) -> str:
         """Method that takes a data argument and returns a key"""
         random_key = str(uuid.uuid4())
@@ -38,18 +52,3 @@ class Cache:
     def get_int(self, key: str):
         """Method that gets an int"""
         return self.get(key, fn=int)
-
-
-# Test cases
-cache = Cache()
-
-
-TEST_CASES = {
-    b"foo": None,
-    123: int,
-    "bar": lambda d: d.decode("utf-8")
-}
-
-for value, fn in TEST_CASES.items():
-    key = cache.store(value)
-    assert cache.get(key, fn=fn) == value
