@@ -8,16 +8,37 @@ from functools import wraps
 
 
 def count_calls(method: Callable) -> Callable:
-        """
-        A decorator that takes a single method Callable argument and returns
-        a Callable
-        """
-        @wraps(method)
-        def wrapper(self, *args, **kwargs):
-            key = method.__qualname__
-            self._redis.incr(key)
-            return method(self, *args, **kwargs)
-        return wrapper
+    """
+    A decorator that takes a single method Callable argument and returns
+    a Callable
+    """
+    @wraps(method)
+    def wrapper(self, *args, **kwargs):
+        key = method.__qualname__
+        self._redis.incr(key)
+        return method(self, *args, **kwargs)
+    return wrapper
+
+
+def call_history(method: Callable) -> Callable:
+    """
+    decorator to store the history of inputs and outputs for a
+    particular function.
+    """
+    @wraps(method)
+    def wrapper(self, *args, **kwargs):  # sourcery skip: avoid-builtin-shadow
+        """ Wrapper for decorator functionality """
+        key = method.__qualname__
+        inputs_key = key + ":inputs"
+        outputs_key = key + ":outputs"
+
+        self._redis.rpush(inputs_key, str(args))
+        data = method(self, *args, **kwargs)
+        self._redis.rpush(outputs_key, str(data))
+        return data
+
+    return wrapper
+
 
 class Cache:
     """The module's class Cache"""
@@ -26,6 +47,7 @@ class Cache:
         self._redis = redis.Redis()
         self._redis.flushdb()
 
+    @call_history
     @count_calls
     def store(self, data: Union[str, bytes, int, float]) -> str:
         """Method that takes a data argument and returns a key"""
